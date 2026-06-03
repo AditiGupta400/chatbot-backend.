@@ -7,57 +7,61 @@ import os
 app = Flask(__name__)
 CORS(app)
 
-# Initialize the Gemini Client
-# Make sure to replace "YOUR_GEMINI_API_KEY" with your real key from Google AI Studio
-# This tells the code to securely look for an environment variable named GEMINI_API_KEY
+# Initialize the Gemini Client securely using the new Google GenAI SDK
 client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY"))
 
-# This system instruction tells the AI exactly who it is and what facts to stick to!
-DEZYKODE_CONTEXT = """
-You are the official AI Chatbot Assistant for DezyKode IT Solutions (www.dezykode.com).
-Your job is to assist users politely and accurately based on the company's real data.
+# 📂 Load the extracted dynamic web intelligence data safely
+knowledge_content = ""
+if os.path.exists("website_knowledge.txt"):
+    with open("website_knowledge.txt", "r", encoding="utf-8") as f:
+        knowledge_content = f.read()
 
-Core Information:
-- Location: Office No. 08, 2nd Floor, A-Wing, City Vista, Downtown Road, Ashoka Nagar, Kharadi, Pune, Maharashtra 411014.
-- Contact: info@dezykode.com
-- Timings: Monday to Saturday (10:00 AM - 6:00 PM), Sunday (10:00 AM - 3:30 PM).
-- What they do: DezyKode is a premier software training institute and software development company bridging the digital skills gap.
-- Courses Offered: Web Designing, UI/UX Design, Full Stack Web Development, Android/iOS App Development, Database Management, Cyber Security, Software Testing, Graphic Designing, and Python/Java Programming.
-- Offerings: Job-oriented curriculum, practical industrial live projects, expert IT trainers, interview preparation, and placement assistance.
-- Target Audiances: College students, fresh graduates, and working professionals looking to upskill.
+# Build base system instruction profile
+system_instruction = f"""
+You are the official AI Assistant for DezyKode IT Solutions Pvt. Ltd. (End to End IT-Services | Talent Development).
 
-Guidelines:
-- Be professional, welcoming, friendly, and helpful.
-- Keep answers relatively concise and easy to read in a small chat window.
-- If you don't know the answer to something outside DezyKode's scope, politely guide the user to email info@dezykode.com or visit the Kharadi center for a counseling session.
+ABOUT DEZYKODE:
+From DezyKode IT Solutions Pvt. Ltd.-End to End IT-Services|Talent Development:
+"We are a technology-driven IT software development company specializing in development, design, quality assurance, deployment, and talent development through internships and industrial training programs"
+
+CRITICAL FORMATTING INSTRUCTIONS:
+- NEVER output markdown characters such as asterisks (** or *). No bold tags or stars.
+- Respond exclusively in clear, polite, plain text paragraph arrangements.
+- Use explicit numeric lists (1., 2., 3.) if breaking down details, without raw formatting characters.
+
+OFFICIAL BUSINESS AND CONTACT METRICS:
+- Address: 2nd floor, City Vista Downtown, 08 A-wing, Fountain Road, Kharadi, Pune, Maharashtra 411014.
+- Phone: 087939 38874
+- Operating Hours: Monday to Saturday from 10:00 AM to 7:00 PM. Completely CLOSED on Sundays.
+
+DYNAMIC WEBSITE COMPILATION DATA:
+Use the following scraped data from the company pages to answer questions regarding specific course lengths, internships, or operational frameworks precisely:
+{knowledge_content}
 """
 
-@app.route('/chat', methods=['POST'])
+@app.route("/chat", methods=["POST"])
 def chat():
-    data = request.json
-    user_message = data.get("message", "")
+    user_data = request.json
+    user_msg = user_data.get("message", "")
     
-    if not user_message:
-        return jsonify({"response": "Please say something!"}), 400
+    if not user_msg:
+        return jsonify({ "response": "I didn't receive an input message." }), 400
         
     try:
-        # Generate content using the recommended model for text chat tasks
+        # Generate content using your exact client syntax and the high-speed gemini-2.5-flash model
         response = client.models.generate_content(
             model='gemini-2.5-flash',
-            contents=user_message,
+            contents=user_msg,
             config=types.GenerateContentConfig(
-                system_instruction=DEZYKODE_CONTEXT,
+                system_instruction=system_instruction,
                 temperature=0.7
             )
         )
-        return jsonify({"response": response.text})
-        
+        return jsonify({ "response": response.text })
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
-        return jsonify({"response": "I'm having trouble connecting to my brain right now. Please try again in a second!"})
+        return jsonify({ "response": f"Backend processing error: {str(e)}" }), 500
 
-if __name__ == '__main__':
-    app.run(port=5000, debug=True)
-
-
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
 
