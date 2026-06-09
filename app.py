@@ -50,12 +50,12 @@ def chat():
         
     response_text = "I am experiencing a bit of traffic right now. Please try sending your message again!"
     
-    # Try up to 3 times if the Google server reports high traffic demand (503)
+    # Try up to 3 times to bypass temporary high traffic demand spikes
     for attempt in range(3):
         try:
-            # Switched to the production-stable gemini-1.5-flash cluster with your exact configuration setups
+            # Using 'gemini-2.5-flash' which natively routes perfectly via the new google-genai library
             response = client.models.generate_content(
-                model='gemini-1.5-flash',
+                model='gemini-2.5-flash',
                 contents=user_msg,
                 config=types.GenerateContentConfig(
                     system_instruction=system_instruction,
@@ -65,13 +65,13 @@ def chat():
             response_text = response.text
             break  # If successful, break out of the retry loop immediately!
         except Exception as e:
-            if "503" in str(e) or "UNAVAILABLE" in str(e):
-                print(f"Gemini cluster busy (Attempt {attempt + 1}/3). Retrying in 1.5 seconds...")
-                time.sleep(1.5)  # Pause briefly before trying again
+            print(f"Gemini API attempt {attempt + 1} failed: {e}")
+            if attempt < 2:
+                time.sleep(2.0)  # Wait 2 seconds before executing the next retry attempt
                 continue
             else:
-                print(f"Encountered a different error: {e}")
-                return jsonify({ "response": f"Backend processing error: {str(e)}" }), 500
+                # If all 3 attempts fail completely, return a informative error response
+                return jsonify({ "response": f"Backend processing error: The server is busy right now. Please try your message once more." }), 500
 
     return jsonify({ "response": response_text })
 
