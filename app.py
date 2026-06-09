@@ -3,6 +3,7 @@ from flask_cors import CORS
 from google import genai
 from google.genai import types
 import os
+import time  # Added for handling retry delay mechanics
 
 app = Flask(__name__)
 CORS(app)
@@ -47,20 +48,32 @@ def chat():
     if not user_msg:
         return jsonify({ "response": "I didn't receive an input message." }), 400
         
-    try:
-        # Generate content using your exact client syntax and the high-speed gemini-2.5-flash model
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=user_msg,
-            config=types.GenerateContentConfig(
-                system_instruction=system_instruction,
-                temperature=0.7
+    response_text = "I am experiencing a bit of traffic right now. Please try sending your message again!"
+    
+    # Try up to 3 times if the Google server reports high traffic demand (503)
+    for attempt in range(3):
+        try:
+            # Switched to the production-stable gemini-1.5-flash cluster with your exact configuration setups
+            response = client.models.generate_content(
+                model='gemini-1.5-flash',
+                contents=user_msg,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction,
+                    temperature=0.7
+                )
             )
-        )
-        return jsonify({ "response": response.text })
-    except Exception as e:
-        print(f"Error calling Gemini API: {e}")
-        return jsonify({ "response": f"Backend processing error: {str(e)}" }), 500
+            response_text = response.text
+            break  # If successful, break out of the retry loop immediately!
+        except Exception as e:
+            if "503" in str(e) or "UNAVAILABLE" in str(e):
+                print(f"Gemini cluster busy (Attempt {attempt + 1}/3). Retrying in 1.5 seconds...")
+                time.sleep(1.5)  # Pause briefly before trying again
+                continue
+            else:
+                print(f"Encountered a different error: {e}")
+                return jsonify({ "response": f"Backend processing error: {str(e)}" }), 500
+
+    return jsonify({ "response": response_text })
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
